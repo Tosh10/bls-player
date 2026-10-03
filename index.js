@@ -53,7 +53,7 @@ function stopTapping() {
 }
 
 function updateBackgroundGains() {
-  const volume = Number($("background-volume").value) / 100;
+  const volume = Number($("background-volume").value) / 400;
   backgrounds.forEach((audio, index) => { audio.volume = volume * backgroundWeights[index]; });
 }
 
@@ -123,7 +123,7 @@ function scheduleTap() {
   oscillator.frequency.value = Number($("frequency-input").value);
   pan.pan.value = rightChannel ? 1 : -1;
   gain.gain.setValueAtTime(0.0001, nextTapAt);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, Number($("tapping-volume").value) / 100 * 0.18), nextTapAt + 0.008);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, Number($("tapping-volume").value) / 100 * 0.5), nextTapAt + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, nextTapAt + 0.11);
   oscillator.connect(gain).connect(pan).connect(audioContext.destination);
   oscillator.start(nextTapAt);
