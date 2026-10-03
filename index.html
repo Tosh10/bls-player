@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#121419">
+  <title>BLS Player</title>
+  <link rel="stylesheet" href="index.css">
+  <script src="index.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="intro">
+      <p class="brand">BLS PLAYER</p>
+      <h1>おやすみ前の時間</h1>
+      <p class="subtitle">音に身をゆだねて、ゆっくり休みましょう</p>
+    </header>
+
+    <section class="player panel" aria-label="プレーヤー">
+      <div class="sound-mark" aria-hidden="true"><span>))</span></div>
+      <p id="play-state" class="play-state" aria-live="polite">停止中</p>
+      <button id="toggle-play" class="primary-button" type="button"><span aria-hidden="true">▶</span> 再生</button>
+    </section>
+
+    <section class="section" aria-labelledby="timer-heading">
+      <h2 id="timer-heading">タイマー</h2>
+      <div class="panel timer-panel">
+        <label for="timer-input">再生時間（分）</label>
+        <div class="timer-controls">
+          <input id="timer-input" type="number" min="1" max="600" step="10" value="30" inputmode="numeric">
+          <select id="timer-select" aria-label="再生時間を選択"></select>
+          <button id="timer-set" class="small-button" type="button">セット</button>
+          <button id="timer-off" class="small-button secondary" type="button">タイマーオフ</button>
+        </div>
+        <p id="timer-error" class="error" role="alert"></p>
+        <div class="remaining"><span>残り時間</span><output id="remaining-time">30:00</output></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="audio-heading">
+      <h2 id="audio-heading">音の設定</h2>
+      <div class="panel settings-panel">
+        <div class="setting-block">
+          <label for="background-select">背景音</label>
+          <select id="background-select" class="wide-select">
+            <option value="brown-noise.mp3">ブラウンノイズ</option>
+            <option value="white-noise.mp3">ホワイトノイズ</option>
+            <option value="tv-static-noise.mp3">テレビの砂嵐</option>
+          </select>
+          <div class="range-heading"><label for="background-volume">音量</label><output id="background-volume-label">40%</output></div>
+          <input id="background-volume" class="volume" type="range" min="0" max="100" value="40">
+        </div>
+        <div class="setting-block">
+          <label for="frequency-preset">タッピング音</label>
+          <div class="frequency-row">
+            <label for="frequency-preset">プリセット</label>
+            <select id="frequency-preset" class="wide-select">
+              <option value="40">γ波（40 Hz）</option>
+              <option value="174">ソルフェジオ周波数（174 Hz）</option>
+              <option value="432">ソルフェジオ周波数（432 Hz）</option>
+              <option value="528">ソルフェジオ周波数（528 Hz）</option>
+              <option value="custom">カスタム</option>
+            </select>
+          </div>
+          <div class="frequency-row custom-row">
+            <label for="frequency-input">周波数を入力（1〜880 Hz）</label>
+            <div class="number-wrap"><input id="frequency-input" type="number" min="1" max="880" step="1" value="40" inputmode="numeric"><span>Hz</span></div>
+          </div>
+          <p id="frequency-error" class="error" role="alert"></p>
+          <div class="range-heading"><label for="tapping-volume">音量</label><output id="tapping-volume-label">80%</output></div>
+          <input id="tapping-volume" class="volume" type="range" min="0" max="100" value="80">
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
