@@ -25,20 +25,7 @@ body {
 .app {
     width: min(100% - 36px, 720px);
     margin: 0 auto;
-    padding: 38px 0 max(32px, env(safe-area-inset-bottom));
-    position: relative
-}
-
-.app:before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    width: 240px;
-    height: 240px;
-    border-radius: 50%;
-    background: #17191f;
-    right: -50px;
-    top: -95px
+    padding: 38px 0 max(32px, env(safe-area-inset-bottom))
 }
 
 .brand {
@@ -48,17 +35,8 @@ body {
     font-size: 14px
 }
 
-.intro h1 {
-    font-size: clamp(2rem, 8vw, 3.35rem);
-    line-height: 1.2;
-    margin: 34px 0 10px;
-    letter-spacing: .03em
-}
-
-.subtitle {
-    margin: 0 0 38px;
-    color: var(--muted);
-    font-size: clamp(1rem, 4vw, 1.35rem)
+.intro {
+    margin-bottom: 8px
 }
 
 .panel {
@@ -68,8 +46,8 @@ body {
 }
 
 .player {
-    min-height: 350px;
-    padding: 36px 24px;
+    min-height: 200px;
+    padding: 30px 24px;
     display: flex;
     align-items: center;
     flex-direction: column;
@@ -77,27 +55,10 @@ body {
     margin-bottom: 40px
 }
 
-.sound-mark {
-    width: 104px;
-    height: 104px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: #252830;
-    color: var(--accent);
-    font-size: 48px;
-    font-weight: 300;
-    line-height: 1
-}
-
-.sound-mark span {
-    transform: rotate(90deg)
-}
-
 .play-state {
     color: var(--muted);
     font-size: 1.15rem;
-    margin: 18px 0 25px
+    margin: 8px 0 20px
 }
 
 .primary-button {
@@ -309,12 +270,6 @@ select option {
     max-width: 720px
 }
 
-.app:before {
-    right: 0;
-    transform: translateX(40%);
-    pointer-events: none
-}
-
 .timer-controls>* {
     min-width: 0
 }
@@ -327,22 +282,14 @@ select option {
     min-width: 0
 }
 
-body {
-    overflow-x: clip
-}
-
 @media(max-width:520px) {
     .app {
         width: calc(100% - 30px);
         padding-top: 26px
     }
 
-    .intro h1 {
-        margin-top: 26px
-    }
-
     .player {
-        min-height: 310px;
+        min-height: 200px;
         border-radius: 24px
     }
 
