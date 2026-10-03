@@ -8,7 +8,9 @@ let audioContext = null;
 let activeBackground = 0;
 let backgroundWeights = [1, 0];
 let crossfading = false;
-const CROSSFADE_SECONDS = 0.35;
+const CROSSFADE_SECONDS = 1.5;
+let crossfadeTimer = null;
+let backgroundCheckTimer = null;
 let isPlaying = false;
 let tapTimer = null;
 let nextTapAt = 0;
@@ -53,7 +55,8 @@ function stopTapping() {
 }
 
 function updateBackgroundGains() {
-  const volume = Number($("background-volume").value) / 100;
+  // Slider 50% is twice the previously preferred background setting near 10%.
+  const volume = Number($("background-volume").value) / 1000;
   backgrounds.forEach((audio, index) => { audio.volume = volume * backgroundWeights[index]; });
 }
 
@@ -67,18 +70,24 @@ function crossfadeBackground() {
   crossfading = true;
   next.currentTime = 0;
   next.play().then(() => {
+    if (!isPlaying) {
+      next.pause();
+      crossfading = false;
+      return;
+    }
     backgroundWeights[activeBackground] = 1;
     backgroundWeights[nextIndex] = 0;
     const previousIndex = activeBackground;
     activeBackground = nextIndex;
     const startedAt = performance.now();
-    const fadeTimer = setInterval(() => {
+    crossfadeTimer = setInterval(() => {
       const progress = Math.min(1, (performance.now() - startedAt) / (CROSSFADE_SECONDS * 1000));
-      backgroundWeights[previousIndex] = 1 - progress;
-      backgroundWeights[nextIndex] = progress;
+      backgroundWeights[previousIndex] = Math.cos(progress * Math.PI / 2);
+      backgroundWeights[nextIndex] = Math.sin(progress * Math.PI / 2);
       updateBackgroundGains();
       if (progress < 1) return;
-      clearInterval(fadeTimer);
+      clearInterval(crossfadeTimer);
+      crossfadeTimer = null;
       backgrounds[previousIndex].pause();
       backgrounds[previousIndex].currentTime = 0;
       crossfading = false;
@@ -86,10 +95,12 @@ function crossfadeBackground() {
   }).catch(() => { crossfading = false; });
 }
 
-backgrounds.forEach((audio) => audio.addEventListener("timeupdate", crossfadeBackground));
-
 function stopPlayback() {
   isPlaying = false;
+  clearInterval(backgroundCheckTimer);
+  backgroundCheckTimer = null;
+  clearInterval(crossfadeTimer);
+  crossfadeTimer = null;
   backgrounds.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
   activeBackground = 0;
   backgroundWeights = [1, 0];
@@ -123,7 +134,9 @@ function scheduleTap() {
   oscillator.frequency.value = Number($("frequency-input").value);
   pan.pan.value = rightChannel ? 1 : -1;
   gain.gain.setValueAtTime(0.0001, nextTapAt);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, Number($("tapping-volume").value) / 100 * 0.18), nextTapAt + 0.008);
+  // Slider 50% doubles the previous level, while the gain cap avoids clipping.
+  const tappingGain = Math.min(1, Number($("tapping-volume").value) / 100 * 1.6);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, tappingGain), nextTapAt + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, nextTapAt + 0.11);
   oscillator.connect(gain).connect(pan).connect(audioContext.destination);
   oscillator.start(nextTapAt);
@@ -148,6 +161,7 @@ async function startPlayback() {
     updateBackgroundGains();
     await backgrounds[activeBackground].play();
     isPlaying = true;
+    backgroundCheckTimer = setInterval(crossfadeBackground, 100);
     rightChannel = false;
     nextTapAt = audioContext.currentTime + 0.05;
     $("play-state").textContent = "再生中";
