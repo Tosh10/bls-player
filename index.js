@@ -55,8 +55,8 @@ function stopTapping() {
 }
 
 function updateBackgroundGains() {
-  // Slider 50% preserves the previously preferred background setting near 10%.
-  const volume = Number($("background-volume").value) / 2000;
+  // Slider 50% is twice the previously preferred background setting near 10%.
+  const volume = Number($("background-volume").value) / 1000;
   backgrounds.forEach((audio, index) => { audio.volume = volume * backgroundWeights[index]; });
 }
 
@@ -134,8 +134,9 @@ function scheduleTap() {
   oscillator.frequency.value = Number($("frequency-input").value);
   pan.pan.value = rightChannel ? 1 : -1;
   gain.gain.setValueAtTime(0.0001, nextTapAt);
-  // Slider 50% matches the previously preferred tapping setting near 80%.
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, Number($("tapping-volume").value) / 100 * 0.8), nextTapAt + 0.008);
+  // Slider 50% doubles the previous level, while the gain cap avoids clipping.
+  const tappingGain = Math.min(1, Number($("tapping-volume").value) / 100 * 1.6);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, tappingGain), nextTapAt + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, nextTapAt + 0.11);
   oscillator.connect(gain).connect(pan).connect(audioContext.destination);
   oscillator.start(nextTapAt);
