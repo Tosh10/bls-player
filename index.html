@@ -12,12 +12,9 @@
   <main class="app">
     <header class="intro">
       <p class="brand">BLS PLAYER</p>
-      <h1>おやすみ前の時間</h1>
-      <p class="subtitle">音に身をゆだねて、ゆっくり休みましょう</p>
     </header>
 
     <section class="player panel" aria-label="プレーヤー">
-      <div class="sound-mark" aria-hidden="true"><span>))</span></div>
       <p id="play-state" class="play-state" aria-live="polite">停止中</p>
       <button id="toggle-play" class="primary-button" type="button"><span aria-hidden="true">▶</span> 再生</button>
     </section>
@@ -57,14 +54,14 @@
             <select id="frequency-preset" class="wide-select">
               <option value="40">γ波（40 Hz）</option>
               <option value="174">ソルフェジオ周波数（174 Hz）</option>
-              <option value="432">ソルフェジオ周波数（432 Hz）</option>
+              <option value="432" selected>ソルフェジオ周波数（432 Hz）</option>
               <option value="528">ソルフェジオ周波数（528 Hz）</option>
               <option value="custom">カスタム</option>
             </select>
           </div>
           <div class="frequency-row custom-row">
             <label for="frequency-input">周波数を入力（1〜880 Hz）</label>
-            <div class="number-wrap"><input id="frequency-input" type="number" min="1" max="880" step="1" value="40" inputmode="numeric"><span>Hz</span></div>
+            <div class="number-wrap"><input id="frequency-input" type="number" min="1" max="880" step="1" value="432" inputmode="numeric"><span>Hz</span></div>
           </div>
           <p id="frequency-error" class="error" role="alert"></p>
           <div class="range-heading"><label for="tapping-volume">音量</label><output id="tapping-volume-label">50%</output></div>
