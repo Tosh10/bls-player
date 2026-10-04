@@ -116,6 +116,10 @@ function stopPlayback() {
 }
 
 function validFrequency() {
+  if (["mokugyo", "solfeggio"].includes($("frequency-preset").value)) {
+    $("frequency-error").textContent = "";
+    return true;
+  }
   const raw = $("frequency-input").value;
   const value = Number(raw);
   const valid = raw.trim() !== "" && /^\d+$/.test(raw) && Number.isInteger(value) && value >= 1 && value <= 880;
@@ -127,20 +131,29 @@ function scheduleTap() {
   if (!isPlaying || !audioContext) return;
   const now = audioContext.currentTime;
   if (nextTapAt < now) nextTapAt = now + 0.03;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
   const pan = audioContext.createStereoPanner();
-  oscillator.type = "sine";
-  oscillator.frequency.value = Number($("frequency-input").value);
   pan.pan.value = rightChannel ? 1 : -1;
-  gain.gain.setValueAtTime(0.0001, nextTapAt);
   // Slider 50% doubles the previous level, while the gain cap avoids clipping.
   const tappingGain = Math.min(1, Number($("tapping-volume").value) / 100 * 1.6);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, tappingGain), nextTapAt + 0.008);
-  gain.gain.exponentialRampToValueAtTime(0.0001, nextTapAt + 0.11);
-  oscillator.connect(gain).connect(pan).connect(audioContext.destination);
-  oscillator.start(nextTapAt);
-  oscillator.stop(nextTapAt + 0.12);
+  const preset = $("frequency-preset").value;
+  const frequencies = preset === "mokugyo"
+    ? [155, 177, 402]
+    : preset === "solfeggio"
+      ? [174, 432, 528]
+      : [Number($("frequency-input").value)];
+  frequencies.forEach((frequency) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, nextTapAt);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, tappingGain / frequencies.length), nextTapAt + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, nextTapAt + 0.11);
+    oscillator.connect(gain).connect(pan);
+    oscillator.start(nextTapAt);
+    oscillator.stop(nextTapAt + 0.12);
+  });
+  pan.connect(audioContext.destination);
   rightChannel = !rightChannel;
   nextTapAt += 1;
   tapTimer = setTimeout(scheduleTap, Math.max(0, (nextTapAt - audioContext.currentTime - 0.12) * 1000));
@@ -190,7 +203,9 @@ $("background-volume").addEventListener("input", (event) => {
 });
 $("tapping-volume").addEventListener("input", (event) => $("tapping-volume-label").textContent = `${event.target.value}%`);
 $("frequency-preset").addEventListener("change", (event) => {
-  if (event.target.value !== "custom") $("frequency-input").value = event.target.value;
+  const isComposite = ["mokugyo", "solfeggio"].includes(event.target.value);
+  $("frequency-input").disabled = isComposite;
+  if (event.target.value !== "custom" && !isComposite) $("frequency-input").value = event.target.value;
   if (!validFrequency()) stopPlayback();
 });
 $("frequency-input").addEventListener("input", () => {
