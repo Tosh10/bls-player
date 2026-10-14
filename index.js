@@ -1,16 +1,17 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const backgrounds = [new Audio(), new Audio()];
-backgrounds.forEach((audio) => { audio.preload = "auto"; });
 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
-let activeBackground = 0;
-let backgroundWeights = [1, 0];
-let crossfading = false;
-const CROSSFADE_SECONDS = 1.5;
-let crossfadeTimer = null;
-let backgroundCheckTimer = null;
+let backgroundGain = null;
+let backgroundSource = null;
+const backgroundAudio = new Audio();
+backgroundAudio.loop = true;
+backgroundAudio.preload = "auto";
+const useFileAudioFallback = window.location.protocol === "file:";
+let backgroundBuffer = null;
+let backgroundBufferUrl = null;
+let backgroundLoadId = 0;
 let isPlaying = false;
 let tapTimer = null;
 let nextTapAt = 0;
@@ -55,56 +56,52 @@ function stopTapping() {
 }
 
 function updateBackgroundGains() {
-  // Slider 50% is twice the previously preferred background setting near 10%.
   const volume = Number($("background-volume").value) / 1000;
-  backgrounds.forEach((audio, index) => { audio.volume = volume * backgroundWeights[index]; });
+  if (useFileAudioFallback) {
+    backgroundAudio.volume = volume;
+    return;
+  }
+  if (!backgroundGain) return;
+  // Slider 50% is twice the previously preferred background setting near 10%.
+  backgroundGain.gain.setTargetAtTime(volume, audioContext.currentTime, 0.015);
 }
 
-function crossfadeBackground() {
-  if (!isPlaying || crossfading) return;
-  const current = backgrounds[activeBackground];
-  if (!Number.isFinite(current.duration) || current.duration - current.currentTime > CROSSFADE_SECONDS) return;
+async function loadBackgroundBuffer() {
+  const url = `resources/${$("background-select").value}`;
+  if (backgroundBuffer && backgroundBufferUrl === url) return backgroundBuffer;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`背景音を読み込めませんでした (${response.status})`);
+  const decodedBuffer = await audioContext.decodeAudioData(await response.arrayBuffer());
+  backgroundBuffer = decodedBuffer;
+  backgroundBufferUrl = url;
+  return decodedBuffer;
+}
 
-  const nextIndex = 1 - activeBackground;
-  const next = backgrounds[nextIndex];
-  crossfading = true;
-  next.currentTime = 0;
-  next.play().then(() => {
-    if (!isPlaying) {
-      next.pause();
-      crossfading = false;
-      return;
-    }
-    backgroundWeights[activeBackground] = 1;
-    backgroundWeights[nextIndex] = 0;
-    const previousIndex = activeBackground;
-    activeBackground = nextIndex;
-    const startedAt = performance.now();
-    crossfadeTimer = setInterval(() => {
-      const progress = Math.min(1, (performance.now() - startedAt) / (CROSSFADE_SECONDS * 1000));
-      backgroundWeights[previousIndex] = Math.cos(progress * Math.PI / 2);
-      backgroundWeights[nextIndex] = Math.sin(progress * Math.PI / 2);
-      updateBackgroundGains();
-      if (progress < 1) return;
-      clearInterval(crossfadeTimer);
-      crossfadeTimer = null;
-      backgrounds[previousIndex].pause();
-      backgrounds[previousIndex].currentTime = 0;
-      crossfading = false;
-    }, 25);
-  }).catch(() => { crossfading = false; });
+function stopBackground() {
+  backgroundAudio.pause();
+  backgroundAudio.currentTime = 0;
+  if (!backgroundSource) return;
+  backgroundSource.onended = null;
+  try { backgroundSource.stop(); } catch {}
+  backgroundSource.disconnect();
+  backgroundSource = null;
+}
+
+function playBackground(buffer) {
+  stopBackground();
+  if (useFileAudioFallback) return;
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+  source.connect(backgroundGain);
+  source.start();
+  backgroundSource = source;
 }
 
 function stopPlayback() {
+  backgroundLoadId++;
   isPlaying = false;
-  clearInterval(backgroundCheckTimer);
-  backgroundCheckTimer = null;
-  clearInterval(crossfadeTimer);
-  crossfadeTimer = null;
-  backgrounds.forEach((audio) => { audio.pause(); audio.currentTime = 0; });
-  activeBackground = 0;
-  backgroundWeights = [1, 0];
-  crossfading = false;
+  stopBackground();
   if (audioContext) {
     updateBackgroundGains();
     audioContext.suspend().catch(() => {});
@@ -165,16 +162,28 @@ async function startPlayback() {
     $("frequency-error").textContent = "このブラウザでは音声を再生できません。";
     return;
   }
+  const loadId = ++backgroundLoadId;
   try {
     audioContext ??= new AudioContextClass();
     await audioContext.resume();
-    backgrounds[activeBackground].src = `resources/${$("background-select").value}`;
-    backgrounds[1 - activeBackground].src = `resources/${$("background-select").value}`;
-    backgrounds.forEach((audio) => audio.load());
-    updateBackgroundGains();
-    await backgrounds[activeBackground].play();
+    let buffer = null;
+    if (useFileAudioFallback) {
+      backgroundAudio.src = `resources/${$("background-select").value}`;
+      updateBackgroundGains();
+      await backgroundAudio.play();
+    } else {
+      backgroundGain ??= audioContext.createGain();
+      backgroundGain.connect(audioContext.destination);
+      buffer = await loadBackgroundBuffer();
+      if (loadId !== backgroundLoadId) return;
+      updateBackgroundGains();
+      playBackground(buffer);
+    }
+    if (loadId !== backgroundLoadId) {
+      stopBackground();
+      return;
+    }
     isPlaying = true;
-    backgroundCheckTimer = setInterval(crossfadeBackground, 100);
     rightChannel = false;
     nextTapAt = audioContext.currentTime + 0.05;
     $("play-state").textContent = "再生中";
@@ -182,20 +191,37 @@ async function startPlayback() {
     scheduleTap();
     syncTimer();
   } catch (error) {
+    if (loadId !== backgroundLoadId) return;
     stopPlayback();
     $("frequency-error").textContent = "音声を開始できませんでした。もう一度お試しください。";
   }
 }
 
 $("toggle-play").addEventListener("click", () => isPlaying ? stopPlayback() : startPlayback());
-$("background-select").addEventListener("change", () => {
-  const wasPlaying = isPlaying;
-  backgrounds.forEach((audio) => { audio.pause(); audio.src = `resources/${$("background-select").value}`; audio.load(); });
-  activeBackground = 0;
-  backgroundWeights = [1, 0];
-  crossfading = false;
-  updateBackgroundGains();
-  if (wasPlaying) backgrounds[activeBackground].play().catch(() => stopPlayback());
+$("background-select").addEventListener("change", async () => {
+  backgroundBuffer = null;
+  backgroundBufferUrl = null;
+  if (!isPlaying) return;
+  const loadId = ++backgroundLoadId;
+  if (useFileAudioFallback) {
+    backgroundAudio.src = `resources/${$("background-select").value}`;
+    updateBackgroundGains();
+    backgroundAudio.play().catch(() => {
+      if (loadId !== backgroundLoadId) return;
+      stopPlayback();
+      $("frequency-error").textContent = "背景音を読み込めませんでした。もう一度お試しください。";
+    });
+    return;
+  }
+  try {
+    const buffer = await loadBackgroundBuffer();
+    if (!isPlaying || loadId !== backgroundLoadId) return;
+    playBackground(buffer);
+  } catch {
+    if (loadId !== backgroundLoadId) return;
+    stopPlayback();
+    $("frequency-error").textContent = "背景音を読み込めませんでした。もう一度お試しください。";
+  }
 });
 $("background-volume").addEventListener("input", (event) => {
   updateBackgroundGains();
