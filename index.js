@@ -5,12 +5,6 @@ const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 let audioContext = null;
 let backgroundGain = null;
 let backgroundSource = null;
-const backgroundAudio = new Audio();
-backgroundAudio.loop = true;
-backgroundAudio.preload = "auto";
-const useFileAudioFallback = window.location.protocol === "file:";
-let backgroundBuffer = null;
-let backgroundBufferUrl = null;
 let backgroundLoadId = 0;
 let isPlaying = false;
 let tapTimer = null;
@@ -57,29 +51,53 @@ function stopTapping() {
 
 function updateBackgroundGains() {
   const volume = Number($("background-volume").value) / 1000;
-  if (useFileAudioFallback) {
-    backgroundAudio.volume = volume;
-    return;
-  }
   if (!backgroundGain) return;
   // Slider 50% is twice the previously preferred background setting near 10%.
   backgroundGain.gain.setTargetAtTime(volume, audioContext.currentTime, 0.015);
 }
 
-async function loadBackgroundBuffer() {
-  const url = `resources/${$("background-select").value}`;
-  if (backgroundBuffer && backgroundBufferUrl === url) return backgroundBuffer;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`背景音を読み込めませんでした (${response.status})`);
-  const decodedBuffer = await audioContext.decodeAudioData(await response.arrayBuffer());
-  backgroundBuffer = decodedBuffer;
-  backgroundBufferUrl = url;
-  return decodedBuffer;
+function fadeInBackground() {
+  const gain = backgroundGain.gain;
+  const now = audioContext.currentTime;
+  const target = Number($("background-volume").value) / 1000;
+  gain.cancelScheduledValues(now);
+  gain.setValueAtTime(0, now);
+  gain.linearRampToValueAtTime(target, now + 0.08);
+}
+
+function createNoiseBuffer(type) {
+  const sampleRate = audioContext.sampleRate;
+  const length = sampleRate * 8;
+  const buffer = audioContext.createBuffer(1, length, sampleRate);
+  const samples = buffer.getChannelData(0);
+
+  if (type === "white") {
+    for (let i = 0; i < length; i++) samples[i] = Math.random() * 2 - 1;
+  } else if (type === "brown") {
+    let value = 0;
+    for (let i = 0; i < length; i++) {
+      value = (value + (Math.random() * 2 - 1) * 0.02) / 1.02;
+      samples[i] = value * 3.5;
+    }
+  } else {
+    // Paul Kellet's filtered-white-noise pinking filter.
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < length; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      samples[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+    }
+  }
+  return buffer;
 }
 
 function stopBackground() {
-  backgroundAudio.pause();
-  backgroundAudio.currentTime = 0;
   if (!backgroundSource) return;
   backgroundSource.onended = null;
   try { backgroundSource.stop(); } catch {}
@@ -87,15 +105,15 @@ function stopBackground() {
   backgroundSource = null;
 }
 
-function playBackground(buffer) {
+function playBackground() {
   stopBackground();
-  if (useFileAudioFallback) return;
   const source = audioContext.createBufferSource();
-  source.buffer = buffer;
+  source.buffer = createNoiseBuffer($("background-select").value);
   source.loop = true;
   source.connect(backgroundGain);
   source.start();
   backgroundSource = source;
+  fadeInBackground();
 }
 
 function stopPlayback() {
@@ -153,19 +171,11 @@ async function startPlayback() {
   try {
     audioContext ??= new AudioContextClass();
     await audioContext.resume();
-    let buffer = null;
-    if (useFileAudioFallback) {
-      backgroundAudio.src = `resources/${$("background-select").value}`;
-      updateBackgroundGains();
-      await backgroundAudio.play();
-    } else {
-      backgroundGain ??= audioContext.createGain();
-      backgroundGain.connect(audioContext.destination);
-      buffer = await loadBackgroundBuffer();
-      if (loadId !== backgroundLoadId) return;
-      updateBackgroundGains();
-      playBackground(buffer);
-    }
+    backgroundGain ??= audioContext.createGain();
+    backgroundGain.connect(audioContext.destination);
+    updateBackgroundGains();
+    if (loadId !== backgroundLoadId) return;
+    playBackground();
     if (loadId !== backgroundLoadId) {
       stopBackground();
       return;
@@ -186,24 +196,11 @@ async function startPlayback() {
 
 $("toggle-play").addEventListener("click", () => isPlaying ? stopPlayback() : startPlayback());
 $("background-select").addEventListener("change", async () => {
-  backgroundBuffer = null;
-  backgroundBufferUrl = null;
   if (!isPlaying) return;
   const loadId = ++backgroundLoadId;
-  if (useFileAudioFallback) {
-    backgroundAudio.src = `resources/${$("background-select").value}`;
-    updateBackgroundGains();
-    backgroundAudio.play().catch(() => {
-      if (loadId !== backgroundLoadId) return;
-      stopPlayback();
-      $("frequency-error").textContent = "背景音を読み込めませんでした。もう一度お試しください。";
-    });
-    return;
-  }
   try {
-    const buffer = await loadBackgroundBuffer();
     if (!isPlaying || loadId !== backgroundLoadId) return;
-    playBackground(buffer);
+    playBackground();
   } catch {
     if (loadId !== backgroundLoadId) return;
     stopPlayback();
